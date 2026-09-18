@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
 *.pyc
+
+# personal study notes, not part of the public portfolio
+EXPLAINER.md
