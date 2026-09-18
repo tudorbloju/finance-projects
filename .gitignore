@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 
-# personal study notes, not part of the public portfolio
+# personal study notes and one-off experiments, not part of the public portfolio
 EXPLAINER.md
+week-01-ecb-rates/experiments/

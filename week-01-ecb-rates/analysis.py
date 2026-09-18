@@ -10,7 +10,19 @@ Takes the raw CSVs saved by data_pull.py and:
 5. Prints a plain-language summary of what the numbers show
 
 Run this after data_pull.py.
+
+By default this uses ALL available data and overwrites the main chart.png
+(the portfolio deliverable). To instead see what the analysis would have
+shown using only data up to a past year, pass --end-year, e.g.:
+
+    python analysis.py --end-year 2021
+
+That does NOT touch chart.png -- it saves its own files under experiments/
+so you can compare different cutoff years without overwriting the main result.
 """
+
+import argparse
+import os
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -19,14 +31,31 @@ RAW_RATE_PATH = "data/ecb_deposit_rate_raw.csv"
 RAW_HICP_PATH = "data/hicp_index_raw.csv"
 CLEAN_DATA_PATH = "data/ecb_rates_and_inflation.csv"
 CHART_PATH = "chart.png"
+EXPERIMENTS_DIR = "experiments"
 
 # We only look at data from this date onward, per the project brief
 # ("since around 2000"). Earlier data exists but is patchier.
 COMMON_START_DATE = "2000-01-01"
 
 
-def load_and_clean_data() -> pd.DataFrame:
-    """Load the two raw CSVs, clean them, and merge into one dataframe."""
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="ECB rate vs. inflation analysis.")
+    parser.add_argument(
+        "--end-year",
+        type=int,
+        default=None,
+        help="Only use data up to and including this year (e.g. 2021). "
+        "Default: use all available data, same as running with no flag.",
+    )
+    return parser.parse_args()
+
+
+def load_and_clean_data(end_year: int | None = None) -> pd.DataFrame:
+    """Load the two raw CSVs, clean them, and merge into one dataframe.
+
+    If end_year is given, data after December of that year is dropped --
+    this lets us simulate "what would this analysis have shown as of then?"
+    """
 
     # --- ECB Deposit Facility Rate ---------------------------------------
     # This series is published daily (the rate is repeated every calendar
@@ -64,10 +93,15 @@ def load_and_clean_data() -> pd.DataFrame:
     # Trim to our common start date and drop any rows still missing data
     df = df.loc[COMMON_START_DATE:].dropna()
 
+    # Optionally cut off everything after a given year, to simulate re-running
+    # this analysis "as of" the end of that year.
+    if end_year is not None:
+        df = df.loc[:f"{end_year}-12-31"]
+
     return df
 
 
-def plot_chart(df: pd.DataFrame) -> None:
+def plot_chart(df: pd.DataFrame, chart_path: str, title: str) -> None:
     """Plot policy rate and inflation on one chart with two y-axes."""
 
     fig, ax_rate = plt.subplots(figsize=(11, 6))
@@ -94,10 +128,11 @@ def plot_chart(df: pd.DataFrame) -> None:
     lines_inflation, labels_inflation = ax_inflation.get_legend_handles_labels()
     ax_rate.legend(lines_rate + lines_inflation, labels_rate + labels_inflation, loc="upper left")
 
-    plt.title("ECB Policy Rate vs. Eurozone Inflation (2000-present)")
+    plt.title(title)
     fig.tight_layout()
-    fig.savefig(CHART_PATH, dpi=150)
-    print(f"Saved chart -> {CHART_PATH}")
+    fig.savefig(chart_path, dpi=150)
+    plt.close(fig)  # frees the figure from memory once saved
+    print(f"Saved chart -> {chart_path}")
 
 
 def compute_lag_statistic(df: pd.DataFrame) -> int:
@@ -135,9 +170,24 @@ def compute_lag_statistic(df: pd.DataFrame) -> int:
 
 
 if __name__ == "__main__":
-    data = load_and_clean_data()
-    data.to_csv(CLEAN_DATA_PATH)
-    print(f"Saved cleaned, merged data -> {CLEAN_DATA_PATH} ({len(data)} monthly rows)")
+    args = parse_args()
+    data = load_and_clean_data(end_year=args.end_year)
 
-    plot_chart(data)
+    if args.end_year is None:
+        # Normal run: overwrite the main portfolio deliverables.
+        clean_data_path = CLEAN_DATA_PATH
+        chart_path = CHART_PATH
+        chart_title = "ECB Policy Rate vs. Eurozone Inflation (2000-present)"
+    else:
+        # --end-year run: write to experiments/ instead, so we never
+        # overwrite the main chart.png / CSV while testing a cutoff year.
+        os.makedirs(EXPERIMENTS_DIR, exist_ok=True)
+        clean_data_path = f"{EXPERIMENTS_DIR}/data_through_{args.end_year}.csv"
+        chart_path = f"{EXPERIMENTS_DIR}/chart_through_{args.end_year}.png"
+        chart_title = f"ECB Policy Rate vs. Eurozone Inflation (2000-{args.end_year})"
+
+    data.to_csv(clean_data_path)
+    print(f"Saved cleaned, merged data -> {clean_data_path} ({len(data)} monthly rows)")
+
+    plot_chart(data, chart_path, chart_title)
     compute_lag_statistic(data)
