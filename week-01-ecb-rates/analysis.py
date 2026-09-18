@@ -135,6 +135,30 @@ def plot_chart(df: pd.DataFrame, chart_path: str, title: str) -> None:
     print(f"Saved chart -> {chart_path}")
 
 
+def correlation_by_lag(rate: pd.Series, inflation: pd.Series, max_lag: int = 24) -> pd.Series:
+    """
+    Compute the correlation between `rate` and `inflation` at every lag from
+    0 to max_lag months, and return all of them (not just the best one).
+
+    Returned as a pandas Series indexed by lag, e.g. result[18] is the
+    correlation at an 18-month lag. This is the building block behind both
+    compute_lag_statistic() (which just wants the single best lag) and the
+    "full curve" chart in bonus_analysis.py (which wants to see the whole
+    shape, not just the peak).
+    """
+    correlations = {}
+
+    for lag in range(0, max_lag + 1):
+        # shift(lag) moves each inflation value forward by `lag` months, so
+        # shifted_inflation[t] = inflation[t - lag] ("what inflation was
+        # `lag` months before this row"). Correlating that with the policy
+        # rate checks how well past inflation predicts today's rate.
+        shifted_inflation = inflation.shift(lag)
+        correlations[lag] = rate.corr(shifted_inflation)
+
+    return pd.Series(correlations, name="correlation").rename_axis("lag_months")
+
+
 def compute_lag_statistic(df: pd.DataFrame) -> int:
     """
     Find which lag (in months) gives the strongest correlation between
@@ -147,20 +171,11 @@ def compute_lag_statistic(df: pd.DataFrame) -> int:
     fits best. That best-fitting lag is our estimate of how far behind
     the ECB's rate trails inflation.
     """
-    best_lag = None
-    best_corr = -2  # correlation is always between -1 and 1, so -2 is a safe starting point
+    correlations = correlation_by_lag(df["policy_rate"], df["inflation_yoy"])
 
-    for lag in range(0, 25):  # test lags of 0 to 24 months
-        # shift(lag) moves each inflation value forward by `lag` months, so
-        # shifted_inflation[t] = inflation_yoy[t - lag] ("what inflation was
-        # `lag` months before this row"). Correlating that with today's
-        # policy rate checks how well past inflation predicts today's rate.
-        shifted_inflation = df["inflation_yoy"].shift(lag)
-        correlation = df["policy_rate"].corr(shifted_inflation)
-
-        if correlation > best_corr:
-            best_corr = correlation
-            best_lag = lag
+    # idxmax() returns the lag (the index) at which correlation is highest
+    best_lag = correlations.idxmax()
+    best_corr = correlations.max()
 
     print(f"\nStrongest correlation is at an {best_lag}-month lag (correlation = {best_corr:.2f})")
     print(f"This means today's policy rate lines up most closely with inflation from {best_lag} months earlier --")

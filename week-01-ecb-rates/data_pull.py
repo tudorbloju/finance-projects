@@ -12,10 +12,15 @@ Series downloaded:
 2. CP0000EZ19M086NEST - Euro area Harmonised Index of Consumer Prices,
    all items (monthly, index level, NOT year-on-year inflation yet --
    we calculate the year-on-year % change ourselves in analysis.py)
+3. 00XFUNEZ19M086NEST - Euro area HICP excluding energy and unprocessed
+   food (monthly, index level) -- this is "core inflation", used in
+   bonus_analysis.py to see if the ECB reacts differently to core vs.
+   headline inflation
 
 Source: FRED (https://fred.stlouisfed.org), series pages:
 - https://fred.stlouisfed.org/series/ECBDFR
 - https://fred.stlouisfed.org/series/CP0000EZ19M086NEST
+- https://fred.stlouisfed.org/series/00XFUNEZ19M086NEST
 """
 
 import requests
@@ -28,6 +33,7 @@ FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
 SERIES_TO_DOWNLOAD = {
     "ECBDFR": "data/ecb_deposit_rate_raw.csv",
     "CP0000EZ19M086NEST": "data/hicp_index_raw.csv",
+    "00XFUNEZ19M086NEST": "data/core_hicp_index_raw.csv",
 }
 
 
